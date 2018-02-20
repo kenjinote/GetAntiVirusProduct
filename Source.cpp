@@ -30,10 +30,10 @@ VOID GetAntiVirusProduct(HWND hEdit)
 		return;
 	}
 	IWbemServices *pSvc = NULL;
-	hResult = pLoc->ConnectServer(_bstr_t(L"Root\\SecurityCenter2"), NULL, NULL, 0, NULL, 0, 0, &pSvc);
+	hResult = pLoc->ConnectServer(BSTR(L"Root\\SecurityCenter2"), NULL, NULL, 0, NULL, 0, 0, &pSvc);
 	if (FAILED(hResult))
 	{
-		hResult = pLoc->ConnectServer(_bstr_t(L"Root\\SecurityCenter"), NULL, NULL, 0, NULL, 0, 0, &pSvc);
+		hResult = pLoc->ConnectServer(BSTR(L"Root\\SecurityCenter"), NULL, NULL, 0, NULL, 0, 0, &pSvc);
 		if (FAILED(hResult))
 		{
 			pLoc->Release();
@@ -51,7 +51,7 @@ VOID GetAntiVirusProduct(HWND hEdit)
 		return;
 	}
 	IEnumWbemClassObject *pEnumerator = NULL;
-	hResult = pSvc->ExecQuery(bstr_t(L"WQL"), bstr_t(L"SELECT * FROM AntiVirusProduct"),
+	hResult = pSvc->ExecQuery(BSTR(L"WQL"), BSTR(L"SELECT * FROM AntiVirusProduct"),
 		WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, NULL, &pEnumerator);
 	if (FAILED(hResult))
 	{
@@ -61,21 +61,23 @@ VOID GetAntiVirusProduct(HWND hEdit)
 		return;
 	}
 	IWbemClassObject *pclsObj;
-	ULONG uReturn = 0;
 	SetWindowText(hEdit, 0);
 	while (pEnumerator)
 	{
+		ULONG uReturn = 0;
 		hResult = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-		if (uReturn == 0)
+		if (FAILED(hResult) || uReturn == 0)
 			break;
 		VARIANT vtDisplayName;
 		if (SUCCEEDED(pclsObj->Get(L"DisplayName", 0, &vtDisplayName, 0, 0)))
 		{
-			SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)(LPWSTR)vtDisplayName.bstrVal);
+			SendMessageW(hEdit, EM_REPLACESEL, 0, (LPARAM)(LPWSTR)vtDisplayName.bstrVal);
+			SendMessageW(hEdit, EM_REPLACESEL, 0, (LPARAM)L"\r\n");
 			VariantClear(&vtDisplayName);
 		}
 		pclsObj->Release();
 	}
+	SendMessage(hEdit, EM_SETSEL, 0, -1);
 	pEnumerator->Release();
 	pSvc->Release();
 	pLoc->Release();
@@ -90,6 +92,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_CREATE:
 		hEdit = CreateWindow(TEXT("EDIT"), 0, WS_VISIBLE | WS_CHILD | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
 		GetAntiVirusProduct(hEdit);
+		break;
+	case WM_SETFOCUS:
+		SetFocus(hEdit);
 		break;
 	case WM_SIZE:
 		MoveWindow(hEdit, 0, 0, LOWORD(lParam), HIWORD(lParam), TRUE);
@@ -107,14 +112,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPSTR pCmdLine, int 
 {
 	MSG msg;
 	WNDCLASS wndclass = {
-		CS_HREDRAW | CS_VREDRAW,
+		0,
 		WndProc,
 		0,
 		0,
 		hInstance,
 		0,
 		LoadCursor(0,IDC_ARROW),
-		(HBRUSH)(COLOR_WINDOW + 1),
+		0,
 		0,
 		szClassName
 	};
@@ -122,7 +127,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPSTR pCmdLine, int 
 	HWND hWnd = CreateWindow(
 		szClassName,
 		TEXT("セキュリティソフトの名前を取得"),
-		WS_OVERLAPPEDWINDOW,
+		WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 		CW_USEDEFAULT,
 		0,
 		CW_USEDEFAULT,
